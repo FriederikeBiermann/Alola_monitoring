@@ -1,9 +1,24 @@
 version: '3.7'
 
 services:
-  prometheus:
+  traefik_alola:
+    image: traefik:v2.5
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"       # HTTP
+      - "8080:8080"   # Traefik Dashboard
+    networks:
+      - alola_monitoring
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    container_name: traefik_alola
+
+  prometheus_alola:
     image: prom/prometheus:latest
-    container_name: prometheus
+    container_name: prometheus_alola
     volumes:
       - ./prometheus:/etc/prometheus
       - prometheus_data:/prometheus
@@ -11,20 +26,30 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.retention.time=30d'
-    ports:
-      - "9090:9090"
+    networks:
+      - alola_monitoring
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`api-alola.bioinformatics.nl`) && PathPrefix(`/prometheus`)"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
 
-  grafana:
+  grafana_alola:
     image: grafana/grafana:latest
-    container_name: grafana
+    container_name: grafana_alola
     volumes:
       - grafana_data:/var/lib/grafana
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=your_password  # Replace with your Grafana password
-    ports:
-      - "3000:3000"
+      - GF_SECURITY_ADMIN_PASSWORD=passwort
+    networks:
+      - alola_monitoring
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`api-alola.bioinformatics.nl`) && PathPrefix(`/grafana`)"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+networks:
+  alola_monitoring:
 
 volumes:
   prometheus_data:
   grafana_data:
- 
